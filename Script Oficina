@@ -1,0 +1,167 @@
+CREATE DATABASE Oficina;
+USE Oficina;
+
+-- Tabela Cliente
+CREATE TABLE Cliente (
+    id_cliente INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(100) NOT NULL,
+    cpf CHAR(11) UNIQUE NOT NULL,
+    telefone VARCHAR(15)
+);
+
+-- Tabela Veiculo
+CREATE TABLE Veiculo (
+    id_veiculo INT AUTO_INCREMENT PRIMARY KEY,
+    placa CHAR(7) UNIQUE NOT NULL,
+    modelo VARCHAR(45),
+    id_cliente INT,
+    CONSTRAINT fk_veiculo_cliente FOREIGN KEY (id_cliente) REFERENCES Cliente(id_cliente)
+);
+
+-- Tabela Equipe e Mecânico
+CREATE TABLE Equipe (
+    id_equipe INT AUTO_INCREMENT PRIMARY KEY,
+    nome_equipe VARCHAR(45)
+);
+
+CREATE TABLE Mecanico (
+    id_mecanico INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(100),
+    especialidade VARCHAR(45),
+    id_equipe INT,
+    CONSTRAINT fk_mecanico_equipe FOREIGN KEY (id_equipe) REFERENCES Equipe(id_equipe)
+);
+
+-- Tabela Ordem de Serviço (OS)
+CREATE TABLE OrdemServico (
+    id_os INT AUTO_INCREMENT PRIMARY KEY,
+    data_emissao DATE NOT NULL,
+    data_conclusao DATE,
+    valor_total DECIMAL(10,2) DEFAULT 0,
+    status ENUM('Aberta', 'Em análise', 'Aprovada', 'Concluída', 'Cancelada') DEFAULT 'Aberta',
+    id_veiculo INT,
+    id_equipe INT,
+    CONSTRAINT fk_os_veiculo FOREIGN KEY (id_veiculo) REFERENCES Veiculo(id_veiculo),
+    CONSTRAINT fk_os_equipe FOREIGN KEY (id_equipe) REFERENCES Equipe(id_equipe)
+);
+
+-- Tabela de Referência de Preços de Serviços
+CREATE TABLE Servico (
+    id_servico INT AUTO_INCREMENT PRIMARY KEY,
+    descricao VARCHAR(100),
+    valor_mao_de_obra DECIMAL(10,2)
+);
+
+-- Relacionamento OS e Serviços
+CREATE TABLE OS_Servicos (
+    id_os INT,
+    id_servico INT,
+    PRIMARY KEY (id_os, id_servico),
+    CONSTRAINT fk_oss_os FOREIGN KEY (id_os) REFERENCES OrdemServico(id_os),
+    CONSTRAINT fk_oss_servico FOREIGN KEY (id_servico) REFERENCES Servico(id_servico)
+);
+
+-- INSERTs
+
+USE Oficina;
+
+-- 1. Inserindo Clientes
+INSERT INTO Cliente (nome, cpf, telefone) VALUES
+('Ricardo Silva', '12345678901', '11988887777'),
+('Beatriz Souza', '23456789012', '11977776666'),
+('Carlos Oliveira', '34567890123', '11966665555'),
+('Adriana Costa', '45678901234', '11955554444'),
+('Fernando Mendes', '56789012345', '11944443333');
+
+-- 2. Inserindo Veículos
+INSERT INTO Veiculo (placa, modelo, id_cliente) VALUES
+('ABC1234', 'Civic', 1),
+('XYZ5678', 'Corolla', 2),
+('DBA9988', 'Uno', 3),
+('SQL0011', 'Onix', 4),
+('JAVA223', 'HR-V', 5);
+
+-- 3. Inserindo Equipes
+INSERT INTO Equipe (nome_equipe) VALUES
+('Equipe Alpha - Motores'),
+('Equipe Beta - Suspensão'),
+('Equipe Gamma - Elétrica');
+
+-- 4. Inserindo Mecânicos
+INSERT INTO Mecanico (nome, especialidade, id_equipe) VALUES
+('João Perito', 'Motores de Popa', 1),
+('Marcos Roda', 'Alinhamento', 2),
+('Lucas Faísca', 'Injeção Eletrônica', 3),
+('Ana Mecânica', 'Câmbio Automático', 1);
+
+-- 5. Inserindo Tabela de Preços de Serviços (Referencial)
+INSERT INTO Servico (descricao, valor_mao_de_obra) VALUES
+('Troca de Óleo', 50.00),
+('Revisão Geral', 450.00),
+('Alinhamento e Balanceamento', 120.00),
+('Retífica de Motor', 1500.00),
+('Reparo Elétrico', 200.00);
+
+-- 6. Inserindo Ordens de Serviço (OS)
+-- Simulando datas para testar o DATEDIFF e status para o HAVING
+INSERT INTO OrdemServico (data_emissao, data_conclusao, valor_total, status, id_veiculo, id_equipe) VALUES
+('2023-10-01', '2023-10-03', 500.00, 'Concluída', 1, 1),
+('2023-10-05', '2023-10-10', 1620.00, 'Concluída', 2, 2),
+('2023-10-12', NULL, 200.00, 'Aberta', 3, 3),
+('2023-10-15', '2023-10-16', 50.00, 'Concluída', 4, 1),
+('2023-10-20', '2023-10-25', 1500.00, 'Aprovada', 5, 1);
+
+-- 7. Relacionando OS com Serviços (Muitos para Muitos)
+-- Isso alimenta os cálculos de SUM e JOINs complexos
+INSERT INTO OS_Servicos (id_os, id_servico) VALUES
+(1, 2), -- OS 1: Revisão Geral
+(1, 1), -- OS 1: Troca de óleo
+(2, 4), -- OS 2: Retífica
+(2, 3), -- OS 2: Alinhamento
+(3, 5), -- OS 3: Reparo Elétrico
+(4, 1), -- OS 4: Troca de Óleo
+(5, 4); -- OS 5: Retífica
+
+-- Queries 
+
+/*Qual o valor total de mão de obra por OS, apenas para as que custam mais de R$ 500,00?
+Utiliza: SELECT, JOIN, Atributo Derivado (SUM), GROUP BY e HAVING.*/
+
+SELECT 
+    os.id_os, 
+    v.modelo AS Carro,
+    SUM(s.valor_mao_de_obra) AS Total_Mao_Obra
+FROM OrdemServico os
+JOIN Veiculo v ON os.id_veiculo = v.id_veiculo
+JOIN OS_Servicos oss ON os.id_os = oss.id_os
+JOIN Servico s ON oss.id_servico = s.id_servico
+GROUP BY os.id_os
+HAVING Total_Mao_Obra > 500.00
+ORDER BY Total_Mao_Obra DESC;
+
+/*Listar Clientes, seus veículos e os mecânicos responsáveis pelo conserto.
+Utiliza: Múltiplas junções (perspectiva complexa).*/
+
+SELECT 
+    c.nome AS Cliente,
+    v.modelo AS Veiculo,
+    os.id_os AS Numero_OS,
+    m.nome AS Mecanico_Responsavel,
+    m.especialidade
+FROM Cliente c
+JOIN Veiculo v ON c.id_cliente = v.id_cliente
+JOIN OrdemServico os ON v.id_veiculo = os.id_veiculo
+JOIN Equipe e ON os.id_equipe = e.id_equipe
+JOIN Mecanico m ON e.id_equipe = m.id_equipe;
+
+/*Qual a média de dias para conclusão de uma OS por equipe?
+Utiliza: DATEDIFF (Atributo derivado), WHERE e ORDER BY.*/
+
+SELECT 
+    e.nome_equipe,
+    ROUND(AVG(DATEDIFF(os.data_conclusao, os.data_emissao)), 2) AS Media_Dias_Conserto
+FROM OrdemServico os
+JOIN Equipe e ON os.id_equipe = e.id_equipe
+WHERE os.status = 'Concluída'
+GROUP BY e.id_equipe
+ORDER BY Media_Dias_Conserto ASC;
